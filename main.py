@@ -1,12 +1,11 @@
 from smolagents import CodeAgent, LiteLLMModel, \
-    DuckDuckGoSearchTool, VisitWebpageTool, tool
+    DuckDuckGoSearchTool, VisitWebpageTool, tool, Model
 import os
 import requests
 import textwrap
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 import logging
-
 
 models_to_choose = ["google/gemini-2.0-flash-001", 
                     "google/gemini-flash-1.5-8b", 
@@ -21,10 +20,12 @@ models_to_choose = ["google/gemini-2.0-flash-001",
                     "microsoft/phi-4-multimodal-instruct"]
 
 
-PROVIDER = "openrouter"
-MODEL_ID_MANAGER = f"{PROVIDER}/{models_to_choose[6]}"
-MODEL_ID_SCRAPPER = f"{PROVIDER}/{models_to_choose[6]}"
+PROVIDER = "together_ai"
+MODEL_ID_MANAGER = f"{PROVIDER}/Qwen/Qwen2.5-Coder-32B-Instruct"
+MODEL_ID_SCRAPPER = f"{PROVIDER}/Qwen/Qwen2.5-Coder-32B-Instruct"
 OPENROUTER_TOKEN = os.getenv("OPENROUTER_TOKEN", "<type your token here>")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "<type your token here>")
+TOGETHER_API_TOKEN = os.getenv("TOGETHER_API_TOKEN", "<type your token here>")
 
 
 @tool
@@ -87,13 +88,20 @@ def add_caption_to_image(image_url: str, caption: str,
         
         # Calculate text dimensions
         line_spacing = int(font_size * 0.2)  # 20% of font size for spacing
-        text_height = sum(draw.textbbox((0, 0), line, font=font)[3] - draw.textbbox((0, 0), line, font=font)[1] for line in wrapped_text)
+        text_height = sum(draw.textbbox((0, 0), line, font=font)[3] - draw.textbbox((0, 0), 
+                                                                                    line, 
+                                                                                    font=font)[1] 
+                          for line in wrapped_text)
         text_height += (len(wrapped_text) - 1) * line_spacing
-        text_width = max(draw.textbbox((0, 0), line, font=font)[2] - draw.textbbox((0, 0), line, font=font)[0] for line in wrapped_text)
+        text_width = max(draw.textbbox((0, 0), line, font=font)[2] - draw.textbbox((0, 0), 
+                                                                                   line, 
+                                                                                   font=font)[0] 
+                         for line in wrapped_text)
         
         # Create semi-transparent background for text
         padding = 10
-        background = Image.new("RGBA", (text_width + 2 * padding, text_height + 2 * padding), (0, 0, 0, 128))
+        background = Image.new("RGBA", (text_width + 2 * padding, text_height + 2 * padding), 
+                               (0, 0, 0, 128))
         image.paste(background, ((width - text_width - 2 * padding) // 2, padding), background)
         
         # Draw text
@@ -116,28 +124,33 @@ def add_caption_to_image(image_url: str, caption: str,
 
 model_manager = LiteLLMModel(
         model_id=MODEL_ID_MANAGER,
-        api_key=OPENROUTER_TOKEN,
+        api_key=TOGETHER_API_TOKEN,
         temperature=1.0
 )
 
 model_scrapper = LiteLLMModel(
     model_id=MODEL_ID_SCRAPPER,
-    api_key=OPENROUTER_TOKEN,
+    api_key=TOGETHER_API_TOKEN,
     temperature=1.0
 )
 
 web_scrapper_agent = CodeAgent(tools=[DuckDuckGoSearchTool(), VisitWebpageTool()],
                                model=model_scrapper, 
-                               max_steps=3,
+                               max_steps=5,
+                               additional_authorized_imports=["*"],
                                name="agent_of_web_scrapping", 
-                               description="You are the agent that creates dataset for research purposes. You doing it by web data parsing and scrapping")
+                               description="You are the agent that creates dataset for research purposes. "\
+                                   "You doing it by web data parsing and scrapping")
 
 
 agent = CodeAgent(tools=[add_caption_to_image], 
                 model=model_manager, managed_agents=[web_scrapper_agent],
-                max_steps=5
+                max_steps=10,
+                additional_authorized_imports=["*"]
                 )
 
 if __name__ == "__main__":
-    response = agent.run("Find any url image of the rabbit in the internet")
+    response = agent.run("Find any image of the dog in the internet. Add funny caption to the image. "\
+        "Be sure that picture could be loaded from the net, so visit website, maybe your need to parse "\
+        "website th find image url. Find any suitable image in the net")
     print(response)
