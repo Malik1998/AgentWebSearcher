@@ -1,13 +1,11 @@
-from smolagents import CodeAgent, LiteLLMModel, WebSearchTool, \
-    DuckDuckGoSearchTool,VisitWebpageTool, tool
+from smolagents import CodeAgent, LiteLLMModel, \
+    DuckDuckGoSearchTool, VisitWebpageTool, tool
 import os
 import requests
 import textwrap
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 import logging
-import litellm
-litellm._turn_on_debug()
 
 
 models_to_choose = ["google/gemini-2.0-flash-001", 
@@ -19,12 +17,13 @@ models_to_choose = ["google/gemini-2.0-flash-001",
                     "meta-llama/llama-4-maverick:free",
                     "mistralai/mistral-small-3.1-24b-instruct",
                     "mistralai/mistral-small-3.1-24b-instruct:free",
-                    "qwen/qwen2.5-vl-72b-instruct:free"]
+                    "qwen/qwen2.5-vl-72b-instruct:free",
+                    "microsoft/phi-4-multimodal-instruct"]
 
 
 PROVIDER = "openrouter"
-MODEL_ID_MANAGER = f"{PROVIDER}/{models_to_choose[3]}"
-MODEL_ID_SCRAPPER = f"{PROVIDER}/{models_to_choose[5]}"
+MODEL_ID_MANAGER = f"{PROVIDER}/{models_to_choose[6]}"
+MODEL_ID_SCRAPPER = f"{PROVIDER}/{models_to_choose[6]}"
 OPENROUTER_TOKEN = os.getenv("OPENROUTER_TOKEN", "<type your token here>")
 
 
@@ -118,25 +117,27 @@ def add_caption_to_image(image_url: str, caption: str,
 model_manager = LiteLLMModel(
         model_id=MODEL_ID_MANAGER,
         api_key=OPENROUTER_TOKEN,
+        temperature=1.0
 )
 
 model_scrapper = LiteLLMModel(
     model_id=MODEL_ID_SCRAPPER,
     api_key=OPENROUTER_TOKEN,
+    temperature=1.0
 )
 
-web_scrapper_agent = CodeAgent(tools=[DuckDuckGoSearchTool(),
-                                    VisitWebpageTool()], 
-                            model=model_scrapper, 
-                            name="agent_of_web_scrapping", 
-                            description="You are the agent that creates dataset for research purposes. You doing it by web data parsing and scrapping")
+web_scrapper_agent = CodeAgent(tools=[DuckDuckGoSearchTool(), VisitWebpageTool()],
+                               model=model_scrapper, 
+                               max_steps=3,
+                               name="agent_of_web_scrapping", 
+                               description="You are the agent that creates dataset for research purposes. You doing it by web data parsing and scrapping")
 
 
 agent = CodeAgent(tools=[add_caption_to_image], 
-                model=model_manager, managed_agents=[web_scrapper_agent])
+                model=model_manager, managed_agents=[web_scrapper_agent],
+                max_steps=5
+                )
 
 if __name__ == "__main__":
-    
-
-    response = agent.run("Find any image of the rabbit in the internet. Add some funny caption to it and save to rabbit.png")
+    response = agent.run("Find any url image of the rabbit in the internet")
     print(response)
